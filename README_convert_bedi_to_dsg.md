@@ -2,15 +2,10 @@
 
 ###Ferret scripts to write FOCI profile data DSG files
 
-README for converting BEDI Epic-netCDF files to dsg files for the collections in ERDDAP,
-arcticRescueData, chukchi, and Shelikof_line8.  All the scripts and related files are
-in SVN under projects/bedi/scripts
-========
-To convert a single file, we need the scripts write_dsg_bedi.jnl, and rename_epic.jnl 
-(called by write_dsg_bedi).  The files read a dataset names_units_titles.nc which contains
-a list of variable names, titles, and units, based on the spreadsheet developed with Peggy 
-Sullivan. To convert a file, give the source directory, the destination directory, and the 
-filename, without extension.  So, to convert this file:
+README for converting BEDI Epic-netCDF files to dsg files for the collections in ERDDAP, arcticRescueData, chukchi, and Shelikof_line8.  All the scripts and related files are in SVN under projects/bedi/scripts
+
+To convert a single file, we need the scripts write_dsg_bedi.jnl, and rename_epic.jnl (called by write_dsg_bedi).  The files read a dataset names_units_titles.nc which contains a list of variable names, titles, and units, based on the spreadsheet developed with Peggy Sullivan. To convert a file, give the source directory, the destination directory, and the 
+filename, without ext ension.  So, to convert this file:
 
 /home/users/ansley/projects/bedi/Shelikof_line8/2012/dy1204c002.cdf
 
@@ -26,26 +21,17 @@ This writes /home/data/bedi/Shelikof_line8/2012/dy1204c002_dsg.nc
 That's all that is needed for adding further datasets to any of our existing data.
 
 ------
-Following are notes about setting up the datasets for ERDDAP configuration, and about
-creating the file with names,units,etc from the naming spreadsheet.
+Following are notes about setting up the datasets for ERDDAP configuration, and about creating the file with names,units,etc from the naming spreadsheet.
 
-# The file names_units_titles.nc contains epic code, variable names, varible titles, variable units
-  and the additional notes field. To generate this:
+# The file names_units_titles.nc contains epic code, variable names, varible titles, variable units and the additional notes field. To generate this:
   Export the spreadsheet from https://docs.google.com/spreadsheets/d/1ijLKbgrsJFOZVOIEG7jJg-kxz8e2Fni8QskqIphLF4w
-  as a csv file.  Edit this taking off the start and end rows, leaving just a single header 
-  line and the columns.  Make sure there aren't any commas within cells, e.g. OXYGEN, %SAT. 
-  Remove any quotes. Also remove ** and *** that are pointing to notes. Also check for quotes 
-  around the units that are part of some long-names. Call this names_spreadsheet.csv. Convert 
-  to a netcdf file names_units_titles.nc with csv_to_nc.jnl.
+  as a csv file.  Edit this taking off the start and end rows, leaving just a single header line and the columns.  Make sure there aren't any commas within cells, e.g. OXYGEN, %SAT. 
+  
+  Remove any quotes. Also remove ** and *** that are pointing to notes. Also check for quotes around the units that are part of some long-names. Call this names_spreadsheet.csv. Convert to a netcdf file names_units_titles.nc with csv_to_nc.jnl.
 
-# The script write_dsg_bedi.jnl uses this to transform the epic .nc files to dsg files. It calls 
-  rename_epic_bedi.jnl which reads the info from file names_units_titles.nc created in the step
-  above and the translation for each Epic code to new variable names with units.  
+# The script write_dsg_bedi.jnl uses this to transform the epic .nc files to dsg files. It calls rename_epic_bedi.jnl which reads the info from file names_units_titles.nc created in the step above and the translation for each Epic code to new variable names with units.  
 
-# The scripts dsg_arcticRescue.jnl  dsg_chukchi.jnl  dsg_Shelikof_line8.jnl will run the conversion
-  script on the whole list of files under those directories. To do just one file, the Ferret 
-  command runs the script write_dsg_bedi.jnl, naming the directory where the epic netCDF file is, and 
-  the file name, without extension.  So run this:
+# The scripts dsg_arcticRescue.jnl  dsg_chukchi.jnl  dsg_Shelikof_line8.jnl will run the conversion script on the whole list of files under those directories. To do just one file, the Ferret command runs the script write_dsg_bedi.jnl, naming the directory where the epic netCDF file is, and the file name, without extension.  So run this:
 
      > ferret
      yes? go write_dsg_bedi /home/users/ansley/projects/bedi/chukchi/ae1001_2010 \
