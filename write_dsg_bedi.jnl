@@ -1,0 +1,198 @@
+! Write DSG file from an EcoFOCI netCDF file
+! rename variables according to spreadsheet: see rename_epic_bedi.jnl
+
+! Argument 1 is the source-data directory
+! Argument 2 is the destination-data directory
+! Argument 3 is the file name, without extension, e.g. he874c08
+
+can mode ver
+
+cancel mode upcase
+cancel var/all; cancel data/all
+
+define symbol fname = ($3)
+define symbol infile = ($1)/($fname).nc
+define symbol outfile = ($2)/($fname)_dsg.nc
+
+! Will add a variable to the input file, which lets us
+! read/write from that file and thus get all the global
+! attributes.
+
+sp cp ($infile) ($fname)_copy.nc
+use ($fname)_copy.nc
+
+! Get the first variable name to use below in definitions,
+! skipping the EPIC variable time2
+let varnames = ..varnames
+
+let nvars = ..nvars
+repeat/range=1:`nvars`/name=v (\
+define symbol v = `v`;\
+define symbol vname = `varnames[i=($v)]`;\
+if `strindex("($vname)", "time2") GT 0` THEN exit/cycle;\
+if `strindex("($vname)", "TIME2") GT 0` THEN exit/cycle;\
+exit/loop)
+
+! One profile per dsg file
+! Define axis for instance direction
+
+let nprof = 1
+def axis/e=1:`nprof`:1 prof
+
+! Depth is the sample-dimension variable. Leave the variables on the depth axis.
+! Make sure the units of depth is meters. 
+
+let ndepths = `($vname),RETURN=ksize`
+define symbol depthaxis = `($vname),RETURN=zaxis`
+set axis/units="m"/outtype=float ($depthaxis)
+IF `STRCMP(UPCASE("($depthaxis)"), "DEPTH") NE 0` THEN \
+   define axis/quiet/Z/units="m"/depth depth = z[gz=($depthaxis)]
+set axis/outtype=float depth
+
+! Define an ID variable and put the cf_role attribute on it
+
+! Is there a cast attribute? If so make sure it is part of the ID.
+! We will also write it as a separate variable below.
+
+define symbol cast = cast
+
+let attnames = ..attnames
+if `IS_ELEMENT_OF_STR_N(attnames, "cast") ne 0` then
+   define symbol cast  = `..cast`
+   let clen = STRLEN("($cast)")
+   IF `clen gt 0` then
+      IF `clen EQ 1` THEN define symbol cast = 00($cast)
+      IF `clen EQ 2` THEN define symbol cast = 0($cast)
+      IF `clen LT 3` THEN let clen = 3
+      let namelen = STRLEN("($fname)")
+      let namec = SUBSTRING("($fname)", `namelen-clen+1`, `clen`)
+      IF `STRCMP("($cast)", namec) NE 0` THEN 
+         let/title="profile id" id = reshape("($fname)_($cast)", _e[ge=prof])
+	 list/append/nohead/quiet/file="../cast_list.dat" "($fname)", "($cast)" 
+      ELSE
+         let/title="profile id" id = reshape("($fname)", _e[ge=prof])
+      ENDIF
+   ENDIF
+ENDIF
+
+! Is there a cruise attribute? Write as separate variable below.
+
+define symbol cruise = cruise
+
+let attnames = ..attnames
+IF `IS_ELEMENT_OF_STR_N(attnames, "cruise") ne 0` THEN 
+   DEFINE SYMBOL cruise  = `..cruise`
+   let nsp = STRINDEX("($cruise)", " ")
+   IF `nsp GT 0` THEN DEFINE SYMBOL cruise = `SUBSTRING("($cruise)", 1, nsp-1)`
+ENDIF
+
+define attribute/output id.cf_role = "profile_id"
+
+can att/output id.history
+save/quiet/append/file=($fname)_copy.nc id
+cancel var id
+
+can dat/all
+use ($fname)_copy.nc
+let varnames = ..varnames
+load `varnames[i=2]`
+
+! save the ID variable, also saving all the global attributes
+! and the new featureType attribute
+
+define attribute/output ..featureType = "profile"
+set att/output=all .
+set att/output=all id
+can att/output id.history
+can att/output id.missing_value
+
+save/quiet/clobber/file="($outfile)" id
+
+
+! Save the CAST created above.
+let/title="cast number" cast = reshape("($cast)", _e[ge=prof])
+can att/output cast.missing_value
+save/quiet/append/file="($outfile)" cast
+
+! Save the CRUISE created above.
+let/title="Cruise name" cruise = reshape("($cruise)", _e[ge=prof])
+can att/output cruise.missing_value
+save/quiet/append/file="($outfile)" cruise
+
+! Make a rowSize variable and add the sample_dimension attribute to it
+
+define symbol zax = depth
+define symbol zaxdn = depth
+set axis/units="m" ($depthaxis)
+
+
+set axis/name=longi_in `($vname),RETURN=xaxis`
+set axis/name=latit_in `($vname),RETURN=yaxis`
+set axis/name=timeax_in `($vname),RETURN=taxis`
+
+let/title="number of depths for this profile" rowSize = RESHAPE(ndepths, _e[ge=prof])
+define attribute/output rowSize.sample_dimension = "($zax)"
+set var/outtype=int/bad=-999 rowSize
+set att/output=all rowSize
+
+save/quiet/append/file="($outfile)" rowSize
+
+! Define dependent 1-D variables longitude, latitude and time
+
+! get the single time step in seconds since 1970
+
+define symbol timeax = `($vname),RETURN=taxis`
+
+define symbol datatime = `tax_datestring(t[gt=($timeax)], t[gt=($timeax)], "sec")`
+define axis/quiet/t="($datatime)":"($datatime)":1/t0=1-jan-1970/units=seconds onetime
+
+let tsec = t[gt=onetime,l=1]
+let/title="Time"/units="seconds since 1970-01-01T00:00:00"  time = RESHAPE(tsec, _e[ge=prof])
+
+! Define a longitude in the range -180:180 and a lon360 variable in 0:360
+
+let lon_loc = x[gx=($vname)]
+IF `lon_loc LT -180` THEN let lon_loc = `lon_loc,prec=7` + 360
+IF `lon_loc GT  180` THEN let lon_loc = `lon_loc,prec=7` - 360
+! Define a lon360 variable
+let lon_loc360 = `lon_loc,prec=7`
+if `lon_loc360 LT 0` THEN let lon_loc360 = `lon_loc360,prec=7` + 360
+
+let lat_loc = y[gy=($vname)]
+LET/title="station longitude"/units="degrees_east" longitude = RESHAPE(lon_loc, _e[ge=prof])
+LET/title="station longitude 360"/units="degrees_east" lon360 = RESHAPE(lon_loc360, _e[ge=prof])
+LET/title="station latitude"/units="degrees_north" latitude = RESHAPE(lat_loc, _e[ge=prof])
+
+SET VAR/OUTTYPE=float longitude
+SET VAR/OUTTYPE=float lon360
+SET VAR/OUTTYPE=float latitude
+
+save/quiet/append/outtype=double/file="($outfile)" time
+save/quiet/append/outtype=float/file="($outfile)" longitude, lon360, latitude
+
+! Write the variables
+
+! The depth axes have been converted to decibars,
+! in increments of 1. Use meters as units
+
+! Put the variables on a grid that's the depths axis only.
+
+let zvar = z[gz=depth]
+set axis/units="m" depth
+
+let varnames = ..varnames
+let nvars = ..nvars
+
+repeat/range=1:`nvars`/name=v (\
+define symbol v = `v`;\
+define symbol vname = `varnames[i=($v)]`;\
+if `strindex("($vname)", "time2") GT 0` THEN exit/cycle;\
+if `strindex("($vname)", "TIME2") GT 0` THEN exit/cycle;\
+if `strindex("($vname)", "id") GT 0` THEN exit/cycle;\
+go  "/home/users/ansley/projects/bedi/scripts/rename_epic_bedi.jnl" 2;\
+save/quiet/append/outtype=float/file="($outfile)" ($vname_out))
+
+say ($outfile)
+
+can dat/all
+sp rm ($fname)_copy.nc

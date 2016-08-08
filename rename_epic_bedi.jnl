@@ -1,0 +1,111 @@
+! Using the epic codes and Peggy's spreadsheet information
+! rename the variables to our new name set.  Add attributes
+
+! Argument: 
+! 1 to only set the variable name, units, title. Getting the var name
+!   units and title for an incoming variable name.
+! 2 to also rename the variable and set attributes. Getting the var name
+!   units and title for renaming a variable in dataset 1
+
+! This file from the spreadsheet has the columns with names units titles to use:
+! epic, ename, eunits, etitle, enote
+
+use "/home/users/ansley/projects/bedi/scripts/names_units_titles.nc"
+
+IF `($1"2|1|2|*>2") EQ 2` then 
+   DEFINE SYMBOL ecode = `($vname)[d=1].epic_code`
+   let indx = element_index(epic, ($ecode) )* i[g=epic]
+else
+   let indx = element_index_str(ename, "($vname)" )* i[g=epic]
+endif
+
+IF `indx[i=@ngd] EQ 0` THEN
+   say File ($infile)
+   say ($vname) with epic code ($ecode) is not in conversion list
+   cancel data names_units_titles
+   exit/script
+
+   define symbol vname_out = ($vname)
+   set var/name=($vname)_in ($vname)
+   let ($vname_out) = reshape(($vname)_in, zvar)
+   set att/like=($vname)_in ($vname_out)
+
+ENDIF
+
+let ic = compressi(indx)
+define symbol icode = `ic[i=1]`
+
+if `($ecode"-1|*>1") lt 0` then define symbol ecode = `epic[i=($icode)]`
+
+cancel symbol vname_out, title, units, units_long
+let converted = 0
+cancel symbol setbad
+
+! For the epic codes we have listed in the table, define name, 
+! title, units and units_long attribute.
+
+! Make depths and pressures show as depth...
+
+if `($ecode) eq 1 or ($ecode) eq 3` then
+
+   define symbol vname_out = ocean_depth
+   define symbol title = depth
+   define symbol units = m
+   define symbol units_long = meters
+   let converted = 1
+
+else
+
+   define symbol vname_out = `ename[i=($icode)]`
+   define symbol title = `etitle[i=($icode)]`
+   define symbol units = `eunits[i=($icode)]`
+   define symbol units_long = `enote[i=($icode)]`
+   let converted = 1
+
+endif
+
+cancel data names_units_titles
+
+! IF we just wanted the name, title, units, then we are done
+
+IF `($1"2|1|2|*>2") EQ 1` then exit/script
+
+
+! If the variable code was found in our list, define the output variable,
+! with the name, title, units, and units_long attributes. Keep any other
+! attributes from the original variable except the one called "name".
+
+define symbol badval = -1.e34
+
+if `converted eq 1` then
+   if `($vname_out"0|*>1") eq 0 or ($title"0|*>1") eq 0($units"0|*>1") eq 0` then
+      say ERROR renaming varible ($vname) with Epic code ($ecode)
+      exit/program
+   endif
+   let ($vname_out) = reshape(($vname), zvar)
+   set att/like=($vname) ($vname_out)
+   cancel att/output ($vname_out).name
+   
+! bottle sample data has bad-value of 1.e35.  set that.
+   if ($setbad"0|*>1") then
+      let ($vname_out)_1 = if ($vname) ge ($setbad) then ($setbad) else ($vname)
+      let ($vname_out) = reshape(($vname_out)_1, zvar)
+      set att/like=($vname) ($vname_out)
+      set var/bad=($setbad) ($vname_out)
+      define symbol badval = ($setbad)
+   endif
+
+
+   set var/title="($title)"/units="($units)" ($vname_out)
+   if ($units_long"0|*>1") then define attribute/output ($vname_out).units_long="($units_long)"
+else
+   say file ($infile)
+   say ($vname) with epic code ($ecode) is not in conversion list
+   define symbol vname_out = ($vname)
+   set var/name=($vname)_in ($vname)
+   let ($vname_out) = reshape(($vname)_in, zvar)
+   set att/like=($vname)_in ($vname_out)
+
+endif
+
+define att/output  ($vname_out).missing_value=($badval)
