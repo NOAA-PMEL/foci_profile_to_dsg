@@ -1,11 +1,11 @@
-foci_profile_to_dsg
+#foci_profile_to_dsg
 
-Ferret scripts to write FOCI profile data DSG files
+###Ferret scripts to write FOCI profile data DSG files
 
 README for converting BEDI Epic-netCDF files to dsg files for the collections in ERDDAP,
 arcticRescueData, chukchi, and Shelikof_line8.  All the scripts and related files are
 in SVN under projects/bedi/scripts
-
+========
 To convert a single file, we need the scripts write_dsg_bedi.jnl, and rename_epic.jnl 
 (called by write_dsg_bedi).  The files read a dataset names_units_titles.nc which contains
 a list of variable names, titles, and units, based on the spreadsheet developed with Peggy 
